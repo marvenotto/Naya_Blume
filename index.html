@@ -7,13 +7,13 @@
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background-color: #050508;
+            background-color: #070508; /* Ein sehr dunkles, warmes Schwarz */
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         canvas { display: block; width: 100%; height: 100%; }
         .dedication {
             position: absolute; bottom: 35px; width: 100%; text-align: center;
-            color: rgba(255, 255, 255, 0.4); letter-spacing: 4px; font-size: 13px;
+            color: rgba(255, 182, 193, 0.4); letter-spacing: 4px; font-size: 13px;
             pointer-events: none; text-transform: uppercase; animation: fadeIn 3s;
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -37,23 +37,28 @@
 
     let structures = [];
 
-    // Mehrschichtige, intensive Farbkombinationen (Stamm, Äste, helle Blüten, dunkle Blüten)
+    // Ausschließlich edle Pink- und Rosatöne, abgestimmt auf Nayas Lieblingsfarbe
     const palettes = [
-        { stem: '#2d4a22', branch: '#52796f', bloom1: 'rgba(255, 183, 195, 0.8)', bloom2: 'rgba(201, 24, 74, 0.6)' },
-        { stem: '#1a1a2e', branch: '#16213e', bloom1: 'rgba(78, 205, 196, 0.8)', bloom2: 'rgba(255, 230, 109, 0.6)' },
-        { stem: '#3a0ca3', branch: '#7209b7', bloom1: 'rgba(247, 37, 133, 0.8)', bloom2: 'rgba(67, 97, 238, 0.6)' },
-        { stem: '#283618', branch: '#606c38', bloom1: 'rgba(254, 250, 224, 0.9)', bloom2: 'rgba(21da, 165, 32, 0.7)' }
+        // Zartes Pastellrosa mit dunklen, waldgrünen Stängeln
+        { stem: '#1a2e20', branch: '#3b5c43', bloom1: 'rgba(255, 228, 225, 0.9)', bloom2: 'rgba(255, 182, 193, 0.7)' },
+        // Kräftiges Magenta / Hot Pink mit tiefdunklen violetten Stängeln
+        { stem: '#241024', branch: '#4a244a', bloom1: 'rgba(255, 105, 180, 0.9)', bloom2: 'rgba(199, 21, 133, 0.7)' },
+        // Edles Kirschblüten-Pink / Fuchsia
+        { stem: '#2b141e', branch: '#54263a', bloom1: 'rgba(255, 61, 142, 0.8)', bloom2: 'rgba(220, 20, 60, 0.6)' },
+        // Sanftes Altrosa / Flieder
+        { stem: '#1f1c23', branch: '#3e3747', bloom1: 'rgba(244, 164, 212, 0.9)', bloom2: 'rgba(216, 112, 147, 0.7)' }
     ];
 
-    class LayeredFlower {
-        constructor(x, y, angle, length, width, depth, palette) {
+    class PinkFlower {
+        constructor(x, y, angle, length, width, depth, palette, petalShape) {
             this.x = x; this.y = y; this.angle = angle; this.length = length;
-            this.width = width; this.depth = depth; this.palette = palette;
+            this.width = width; this.depth = depth; 
+            this.palette = palette; this.petalShape = petalShape;
             this.progress = 0;
             this.speed = 0.015 + Math.random() * 0.02;
             this.children = [];
             this.hasGrownChildren = false;
-            this.curve = (Math.random() - 0.5) * 1.2; 
+            this.curve = (Math.random() - 0.5) * 1.0; 
         }
 
         update() {
@@ -65,92 +70,5 @@
                 let endX = this.x + Math.cos(this.angle + this.curve) * this.length;
                 let endY = this.y + Math.sin(this.angle + this.curve) * this.length;
                 
-                // Dichterer Wuchs: Immer 2 bis 4 neue Äste
-                let branches = 2 + Math.floor(Math.random() * 3);
-                for (let i = 0; i < branches; i++) {
-                    let newAngle = this.angle + (Math.random() - 0.5) * 1.8;
-                    let newLength = this.length * (0.6 + Math.random() * 0.25);
-                    this.children.push(new LayeredFlower(endX, endY, newAngle, newLength, this.width * 0.65, this.depth + 1, this.palette));
-                }
-            }
-            this.children.forEach(child => child.update());
-        }
-
-        draw() {
-            let curX = this.x + Math.cos(this.angle + this.curve) * this.length * this.progress;
-            let curY = this.y + Math.sin(this.angle + this.curve) * this.length * this.progress;
-
-            ctx.beginPath();
-            ctx.moveTo(this.x, this.y);
-            let cpX = (this.x + curX) / 2 + Math.sin(this.angle) * 10;
-            let cpY = (this.y + curY) / 2 + Math.cos(this.angle) * 10;
-            ctx.quadraticCurveTo(cpX, cpY, curX, curY);
-
-            ctx.strokeStyle = this.depth < 2 ? this.palette.stem : this.palette.branch;
-            ctx.lineWidth = Math.max(0.4, this.width);
-            ctx.stroke();
-
-            // Komplexe, mehrschichtige Blüten an den Enden
-            if (this.progress >= 1 && this.depth >= 4) {
-                let petalSize = Math.random() * 4 + 2;
-                
-                // Äußere Blüte
-                ctx.fillStyle = this.palette.bloom2;
-                ctx.beginPath();
-                ctx.arc(curX + (Math.random()-0.5)*4, curY + (Math.random()-0.5)*4, petalSize, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Innere, hellere Blüte für Tiefenwirkung
-                ctx.fillStyle = this.palette.bloom1;
-                ctx.beginPath();
-                ctx.arc(curX, curY, petalSize * 0.6, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            this.children.forEach(child => child.draw());
-        }
-    }
-
-    function spawnStructure(x, y) {
-        let palette = palettes[Math.floor(Math.random() * palettes.length)];
-        let mainAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
-        structures.push(new LayeredFlower(x, y, mainAngle, 80 + Math.random() * 40, 3.5, 0, palette));
-    }
-
-    window.addEventListener('pointerdown', (e) => spawnStructure(e.clientX, e.clientY));
-
-    // Schütteln / Doppeltippen zum Löschen
-    window.addEventListener('dblclick', () => structures = []);
-    let lastTap = 0;
-    window.addEventListener('touchend', (e) => {
-        let time = new Date().getTime();
-        if (time - lastTap < 300 && time - lastTap > 0) structures = [];
-        lastTap = time;
-    });
-
-    if (window.DeviceMotionEvent) {
-        let lx = 0, ly = 0, lz = 0;
-        window.addEventListener('devicemotion', (e) => {
-            let acc = e.accelerationIncludingGravity;
-            if (!acc) return;
-            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 25) structures = [];
-            lx = acc.x; ly = acc.y; lz = acc.z;
-        });
-    }
-
-    function animate() {
-        ctx.fillStyle = 'rgba(5, 5, 8, 0.1)'; // Lässt die alten Linien ganz weich verblassen
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        structures.forEach(s => {
-            s.update();
-            s.draw();
-        });
-
-        requestAnimationFrame(animate);
-    }
-    animate();
-</script>
-
-</body>
-</html>
+                // Dichte, organische Verzweigung
+                let branches = 2 + Math.floor(
