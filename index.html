@@ -2,15 +2,18 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Für Naya</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background-color: #070508; /* Ein sehr dunkles, warmes Schwarz */
+            background-color: #070508;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-        canvas { display: block; width: 100%; height: 100%; }
+        canvas { 
+            display: block; width: 100%; height: 100%; 
+            touch-action: none; /* Blockiert störendes Wischen, damit Klicks zu 100% erkannt werden */
+        }
         .dedication {
             position: absolute; bottom: 35px; width: 100%; text-align: center;
             color: rgba(255, 182, 193, 0.4); letter-spacing: 4px; font-size: 13px;
@@ -37,15 +40,10 @@
 
     let structures = [];
 
-    // Ausschließlich edle Pink- und Rosatöne, abgestimmt auf Nayas Lieblingsfarbe
     const palettes = [
-        // Zartes Pastellrosa mit dunklen, waldgrünen Stängeln
         { stem: '#1a2e20', branch: '#3b5c43', bloom1: 'rgba(255, 228, 225, 0.9)', bloom2: 'rgba(255, 182, 193, 0.7)' },
-        // Kräftiges Magenta / Hot Pink mit tiefdunklen violetten Stängeln
         { stem: '#241024', branch: '#4a244a', bloom1: 'rgba(255, 105, 180, 0.9)', bloom2: 'rgba(199, 21, 133, 0.7)' },
-        // Edles Kirschblüten-Pink / Fuchsia
         { stem: '#2b141e', branch: '#54263a', bloom1: 'rgba(255, 61, 142, 0.8)', bloom2: 'rgba(220, 20, 60, 0.6)' },
-        // Sanftes Altrosa / Flieder
         { stem: '#1f1c23', branch: '#3e3747', bloom1: 'rgba(244, 164, 212, 0.9)', bloom2: 'rgba(216, 112, 147, 0.7)' }
     ];
 
@@ -70,5 +68,125 @@
                 let endX = this.x + Math.cos(this.angle + this.curve) * this.length;
                 let endY = this.y + Math.sin(this.angle + this.curve) * this.length;
                 
-                // Dichte, organische Verzweigung
-                let branches = 2 + Math.floor(
+                let branches = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < branches; i++) {
+                    let newAngle = this.angle + (Math.random() - 0.5) * 1.6;
+                    let newLength = this.length * (0.6 + Math.random() * 0.25);
+                    this.children.push(new PinkFlower(endX, endY, newAngle, newLength, this.width * 0.65, this.depth + 1, this.palette, this.petalShape));
+                }
+            }
+            this.children.forEach(child => child.update());
+        }
+
+        draw() {
+            let curX = this.x + Math.cos(this.angle + this.curve) * this.length * this.progress;
+            let curY = this.y + Math.sin(this.angle + this.curve) * this.length * this.progress;
+
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            let cpX = (this.x + curX) / 2 + Math.sin(this.angle) * 10;
+            let cpY = (this.y + curY) / 2 + Math.cos(this.angle) * 10;
+            ctx.quadraticCurveTo(cpX, cpY, curX, curY);
+
+            ctx.strokeStyle = this.depth < 2 ? this.palette.stem : this.palette.branch;
+            ctx.lineWidth = Math.max(0.3, this.width);
+            ctx.stroke();
+
+            if (this.progress >= 1 && this.depth >= 4) {
+                let size = Math.random() * 3 + 1.5;
+                ctx.save();
+                ctx.translate(curX, curY);
+                ctx.rotate(this.angle);
+
+                if (this.petalShape === 0) {
+                    ctx.fillStyle = this.palette.bloom2;
+                    ctx.beginPath(); ctx.arc(0, 0, size * 1.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = this.palette.bloom1;
+                    ctx.beginPath(); ctx.arc(size * 0.2, size * 0.2, size * 0.8, 0, Math.PI * 2); ctx.fill();
+                } 
+                else if (this.petalShape === 1) {
+                    ctx.fillStyle = this.palette.bloom1;
+                    ctx.beginPath(); ctx.ellipse(0, 0, size * 2.5, size * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = this.palette.bloom2;
+                    ctx.beginPath(); ctx.ellipse(0, 0, size * 1.5, size * 0.4, Math.PI / 4, 0, Math.PI * 2); ctx.fill();
+                } 
+                else if (this.petalShape === 2) {
+                    ctx.fillStyle = this.palette.bloom2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -size * 2); ctx.lineTo(size * 0.8, 0); 
+                    ctx.lineTo(0, size * 2); ctx.lineTo(-size * 0.8, 0);
+                    ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = this.palette.bloom1;
+                    ctx.beginPath(); ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2); ctx.fill();
+                } 
+                else {
+                    ctx.fillStyle = this.palette.bloom1;
+                    for(let k = 0; k < 3; k++) {
+                        ctx.beginPath();
+                        ctx.arc((Math.random()-0.5)*size*3, (Math.random()-0.5)*size*3, size*0.7, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+                ctx.restore();
+            }
+            this.children.forEach(child => child.draw());
+        }
+    }
+
+    function spawnStructure(x, y) {
+        let palette = palettes[Math.floor(Math.random() * palettes.length)];
+        let petalShape = Math.floor(Math.random() * 4);
+        let mainAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+        structures.push(new PinkFlower(x, y, mainAngle, 85 + Math.random() * 35, 3.2, 0, palette, petalShape));
+    }
+
+    // Verbesserte Erkennung für Handys
+    let lastSpawnTime = 0;
+    function handleTouch(e) {
+        let now = Date.now();
+        if (now - lastSpawnTime < 100) return; 
+        lastSpawnTime = now;
+        
+        let x = e.clientX || (e.touches && e.touches[0].clientX);
+        let y = e.clientY || (e.touches && e.touches[0].clientY);
+        
+        if(x !== undefined && y !== undefined) spawnStructure(x, y);
+    }
+
+    window.addEventListener('pointerdown', handleTouch);
+    window.addEventListener('touchstart', handleTouch, {passive: true});
+
+    window.addEventListener('dblclick', () => structures = []);
+    let lastTap = 0;
+    window.addEventListener('touchend', (e) => {
+        let time = Date.now();
+        if (time - lastTap < 300 && time - lastTap > 0) structures = [];
+        lastTap = time;
+    });
+
+    if (window.DeviceMotionEvent) {
+        let lx = 0, ly = 0, lz = 0;
+        window.addEventListener('devicemotion', (e) => {
+            let acc = e.accelerationIncludingGravity;
+            if (!acc) return;
+            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 25) structures = [];
+            lx = acc.x; ly = acc.y; lz = acc.z;
+        });
+    }
+
+    function animate() {
+        ctx.fillStyle = 'rgba(7, 5, 8, 0.12)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        structures.forEach(s => {
+            s.update();
+            s.draw();
+        });
+
+        requestAnimationFrame(animate);
+    }
+    animate();
+</script>
+
+</body>
+</html>
