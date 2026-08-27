@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Für Naya - Organic Botany</title>
+    <title>Für Naya - High-End Floral Art</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background: radial-gradient(circle at 50% 100%, #17121c 0%, #050406 100%);
+            background: radial-gradient(circle at 50% 50%, #151118 0%, #050406 100%);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         canvas { 
@@ -16,7 +16,7 @@
         }
         .dedication {
             position: absolute; bottom: 40px; width: 100%; text-align: center;
-            color: rgba(255, 182, 193, 0.25); letter-spacing: 6px; font-size: 11px;
+            color: rgba(255, 182, 193, 0.3); letter-spacing: 6px; font-size: 11px;
             font-weight: 300; pointer-events: none; text-transform: uppercase;
             animation: fadeIn 5s ease-in-out;
         }
@@ -40,31 +40,32 @@
     resize();
 
     let plants = [];
-    let windParticles = [];
+    let windPetals = [];
 
-    // Edle Paletten: Holzige Stämme, lebhafte Blüten
+    // Basisfarben als HSL (Farbton). Damit können wir für jede Blüte die Farbe leicht variieren!
     const palettes = [
-        { bark: '#1a1818', highlight: '#3a3333', b1: '#fff0f5', b2: '#ff9e7d', b3: '#c71585', stamen: '#ffda75' }, 
-        { bark: '#1c161a', highlight: '#3d2b33', b1: '#ffe4e1', b2: '#ff69b4', b3: '#8a2354', stamen: '#ffd700' },
-        { bark: '#141716', highlight: '#2a3b31', b1: '#f8f8ff', b2: '#fbc5d6', b3: '#9c2a6b', stamen: '#fff5cc' }
+        { bark: '#1a1617', baseHue: 335, hueVar: 25 }, // Kirschblüte (Pink zu Magenta)
+        { bark: '#14171a', baseHue: 310, hueVar: 30 }, // Mystisches Violett/Rosa
+        { bark: '#171410', baseHue: 350, hueVar: 20 }  // Warmes Lachsrosa/Rot
     ];
 
     // --- FREI FALLENDE BLÜTENBLÄTTER ---
     class WindPetal {
-        constructor(x, y, color1, color2, size) {
+        constructor(x, y, hue) {
             this.x = x; this.y = y;
-            this.vx = (Math.random() - 0.5) * 2;
-            this.vy = Math.random() * 1.5 + 0.5;
+            this.vx = (Math.random() - 0.5) * 6;
+            this.vy = (Math.random() - 1) * 3 - 2;
+            this.gravity = 0.15;
             this.rotation = Math.random() * Math.PI * 2;
-            this.rotSpeed = (Math.random() - 0.5) * 0.05;
+            this.rotSpeed = (Math.random() - 0.5) * 0.15;
+            this.size = 4 + Math.random() * 4;
+            this.hue = hue;
             this.flip = Math.random() * Math.PI;
-            this.flipSpeed = 0.02 + Math.random() * 0.04;
-            this.size = size * (0.4 + Math.random() * 0.4);
-            this.c1 = color1; this.c2 = color2;
+            this.flipSpeed = 0.05 + Math.random() * 0.05;
         }
         update() {
-            this.x += this.vx + Math.sin(this.y * 0.01) * 0.5; // Sanfter Wind
-            this.y += this.vy;
+            this.vy += this.gravity;
+            this.x += this.vx; this.y += this.vy;
             this.rotation += this.rotSpeed;
             this.flip += this.flipSpeed;
         }
@@ -73,38 +74,46 @@
             ctx.translate(this.x, this.y);
             ctx.rotate(this.rotation);
             ctx.scale(Math.sin(this.flip), 1);
+            
             let grad = ctx.createLinearGradient(0, 0, 0, this.size);
-            grad.addColorStop(0, this.c1); grad.addColorStop(1, this.c2);
+            grad.addColorStop(0, `hsla(${this.hue}, 90%, 80%, 0.9)`);
+            grad.addColorStop(1, `hsla(${this.hue}, 80%, 50%, 0.7)`);
             ctx.fillStyle = grad;
+
             ctx.beginPath();
             ctx.moveTo(0,0);
-            ctx.bezierCurveTo(this.size*0.6, this.size*0.3, this.size*0.4, this.size*0.9, 0, this.size);
-            ctx.bezierCurveTo(-this.size*0.4, this.size*0.9, -this.size*0.6, this.size*0.3, 0, 0);
+            ctx.bezierCurveTo(this.size, this.size*0.3, this.size*0.5, this.size, 0, this.size);
+            ctx.bezierCurveTo(-this.size*0.5, this.size, -this.size, this.size*0.3, 0, 0);
             ctx.fill();
             ctx.restore();
         }
     }
 
-    // --- DIE VIELEN KLEINEN BLÜTEN ---
-    class ClusterBloom {
-        constructor(x, y, angle, maxSize, palette, delay) {
+    // --- DIE FEINEN, DETAILREICHEN BLÜTEN ---
+    class DetailBloom {
+        constructor(x, y, angle, baseHue, depthLevel) {
             this.x = x; this.y = y; this.angle = angle;
-            this.maxSize = maxSize * (0.6 + Math.random() * 0.6); // Variierende Größen
-            this.palette = palette;
-            this.delay = delay; // Wann die Blüte anfängt sich zu öffnen
-            this.progress = 0;
             
-            // Zufällige Blütenform generieren (3-5 Schichten, 4-7 Blätter)
-            this.layers = 2 + Math.floor(Math.random() * 3);
-            this.petalCount = 4 + Math.floor(Math.random() * 4);
-            this.petalWidth = 0.4 + Math.random() * 0.4; // Schmal bis breit
-            this.isStar = Math.random() > 0.5; // Sternförmig oder rund?
+            // Tiefe entscheidet über Größe und Helligkeit
+            this.depthLevel = depthLevel; // 0 = Vordergrund, tiefer = Hintergrund
+            this.maxSize = (7 + Math.random() * 5) * (1 - this.depthLevel * 0.15); 
+            
+            // JEDE Blüte bekommt einen eigenen, leicht abweichenden Farbton
+            this.hue = baseHue + (Math.random() - 0.5) * 35; 
+            // Hintergrundblüten sind dunkler (weniger Lightness)
+            this.lightness = 75 - (this.depthLevel * 10); 
+            
+            this.progress = 0;
+            this.delay = Math.random() * 0.5; // Leicht versetztes Aufblühen
+            
+            this.petalCount = 5 + Math.floor(Math.random() * 3);
+            this.layers = 2 + Math.floor(Math.random() * 2);
         }
 
         update(globalProgress) {
             if (globalProgress > this.delay) {
                 if (this.progress < 1) {
-                    this.progress += 0.02; // Aufblüh-Geschwindigkeit
+                    this.progress += 0.025; // Öffnet sich weich
                     if (this.progress > 1) this.progress = 1;
                 }
             }
@@ -118,222 +127,192 @@
             ctx.rotate(this.angle);
 
             // Organisches Federn beim Aufgehen
-            let scale = Math.sin(this.progress * Math.PI / 2) * (1 + 0.1 * Math.sin(this.progress * Math.PI));
+            let scale = Math.sin(this.progress * Math.PI / 2);
             ctx.scale(scale, scale);
 
             for (let l = this.layers; l > 0; l--) {
                 let layerSize = this.maxSize * (l / this.layers);
-                let pCount = this.petalCount + (l === this.layers ? 1 : 0);
+                let pCount = this.petalCount;
+                
+                let cInner = `hsla(${this.hue}, 90%, ${this.lightness + 15}%, 0.95)`;
+                let cOuter = `hsla(${this.hue}, 85%, ${this.lightness - 15}%, 0.8)`;
                 
                 let grad = ctx.createRadialGradient(0, 0, 0, 0, 0, layerSize);
-                let colorOuter = l % 2 === 0 ? this.palette.b3 : this.palette.b2;
-                let colorInner = this.palette.b1;
-                grad.addColorStop(0, colorInner);
-                grad.addColorStop(1, colorOuter);
+                grad.addColorStop(0, cInner);
+                grad.addColorStop(1, cOuter);
                 
                 ctx.fillStyle = grad;
-                ctx.globalAlpha = 0.9;
                 
                 let offset = (Math.PI * 2 / pCount) * 0.5 * l;
                 for (let i = 0; i < pCount; i++) {
                     ctx.save();
                     ctx.rotate((Math.PI * 2 / pCount) * i + offset);
                     
-                    let w = layerSize * this.petalWidth;
+                    let w = layerSize * 0.6;
                     let s = layerSize;
                     
                     ctx.beginPath();
                     ctx.moveTo(0,0);
-                    if (this.isStar) {
-                        ctx.quadraticCurveTo(w, s*0.4, 0, s);
-                        ctx.quadraticCurveTo(-w, s*0.4, 0, 0);
-                    } else {
-                        ctx.bezierCurveTo(w*1.2, s*0.3, w*0.8, s*0.9, 0, s);
-                        ctx.bezierCurveTo(-w*0.8, s*0.9, -w*1.2, s*0.3, 0, 0);
-                    }
+                    // Feine, leicht eckige Blütenform für mehr Detailtiefe
+                    ctx.bezierCurveTo(w, s*0.4, w*0.8, s, 0, s*0.9);
+                    ctx.bezierCurveTo(-w*0.8, s, -w, s*0.4, 0, 0);
                     ctx.fill();
                     
-                    // Zarte Details (Blattadern)
-                    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-                    ctx.lineWidth = 0.4;
+                    // Zarte Blattadern
+                    ctx.strokeStyle = `hsla(${this.hue}, 50%, 90%, 0.3)`;
+                    ctx.lineWidth = 0.3;
+                    ctx.beginPath();
+                    ctx.moveTo(0,0); ctx.lineTo(0, s*0.7);
                     ctx.stroke();
+                    
                     ctx.restore();
                 }
             }
 
-            // Staubgefäße
-            if (this.progress > 0.5) {
-                ctx.globalAlpha = (this.progress - 0.5) * 2;
-                for(let i=0; i<8; i++) {
+            // Filigrane Staubgefäße (nur sichtbar bei großen Blüten im Vordergrund)
+            if (this.progress > 0.6 && this.maxSize > 5) {
+                ctx.globalAlpha = (this.progress - 0.6) * 2;
+                for(let i=0; i<6; i++) {
                     let a = Math.random() * Math.PI*2;
-                    let d = Math.random() * (this.maxSize * 0.3);
-                    ctx.strokeStyle = this.palette.b2; ctx.lineWidth = 0.5;
+                    let d = Math.random() * (this.maxSize * 0.35);
+                    ctx.strokeStyle = `hsla(${this.hue}, 80%, 40%, 0.8)`;
+                    ctx.lineWidth = 0.4;
                     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*d, Math.sin(a)*d); ctx.stroke();
-                    ctx.fillStyle = this.palette.stamen;
-                    ctx.beginPath(); ctx.arc(Math.cos(a)*d, Math.sin(a)*d, 1, 0, Math.PI*2); ctx.fill();
+                    
+                    ctx.fillStyle = '#ffda75'; // Goldenes Zentrum
+                    ctx.beginPath(); ctx.arc(Math.cos(a)*d, Math.sin(a)*d, 0.8, 0, Math.PI*2); ctx.fill();
                 }
             }
             ctx.restore();
         }
     }
 
-    // --- DER ORGANISCHE, KOMPLEXE BAUM ---
-    class OrganicTree {
+    // --- DER FILIGRANE STRAUCH ---
+    class OrganicBush {
         constructor(x, y) {
             this.x = x; this.y = y;
             this.palette = palettes[Math.floor(Math.random() * palettes.length)];
             
-            this.segments = []; // Alle Ast-Segmente
-            this.blooms = [];   // Alle Blüten
+            this.branches = []; 
+            this.blooms = [];   
             this.globalProgress = 0; 
+            this.isFinished = false;
             
-            // Generiere die komplette Baumstruktur sofort im Speicher
-            let baseAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.2;
-            let baseWidth = 14 + Math.random() * 6; // Dicker Stamm
-            this.generateBranch(this.x, this.y, baseAngle, baseWidth, 120, 0, 6); // Max Tiefe = 6 (sehr komplex!)
+            let baseAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+            // Erstellt die Fraktal-Struktur (Tief bis zu Ebene 5)
+            this.generateBranch(this.x, this.y, baseAngle, 70 + Math.random()*30, 8, 0, 5);
+            
+            // Blüten sortieren, damit kleine, dunkle hinten (zuerst) gezeichnet werden
+            this.blooms.sort((a, b) => b.depthLevel - a.depthLevel);
         }
 
-        // Rekursive Funktion zur Erstellung des Baumes
-        generateBranch(startX, startY, angle, width, length, depth, maxDepth) {
-            let steps = 10; // Unterteilt jeden Ast in kleine organische Segmente
-            let stepLen = length / steps;
-            let currentX = startX;
-            let currentY = startY;
-            let currentAngle = angle;
-            let currentWidth = width;
+        generateBranch(startX, startY, angle, length, width, depth, maxDepth) {
+            let endX = startX + Math.cos(angle) * length;
+            let endY = startY + Math.sin(angle) * length;
             
-            let segmentStartDelay = depth * 0.12; // Äste wachsen nacheinander
+            let delay = depth * 0.15; // Wachstumsverzögerung pro Ebene
+            
+            // Speichert die Ast-Linie mit organischem Schwung (Bezier)
+            let cpX = (startX + endX)/2 + (Math.random()-0.5)*length*0.3;
+            let cpY = (startY + endY)/2 + (Math.random()-0.5)*length*0.3;
+            
+            this.branches.push({
+                x1: startX, y1: startY, cpX: cpX, cpY: cpY, x2: endX, y2: endY,
+                w: width, delay: delay
+            });
 
-            for (let i = 0; i < steps; i++) {
-                // Organisches "Zittern" und Biegen (Random Walk)
-                currentAngle += (Math.random() - 0.5) * 0.15;
-                // Leichter Zug nach unten für hängende Äste (wie Trauerweide/Kirschbaum), wenn Tiefe hoch
-                if (depth > 2) currentAngle += 0.02 * Math.cos(currentAngle); 
-
-                let nextX = currentX + Math.cos(currentAngle) * stepLen;
-                let nextY = currentY + Math.sin(currentAngle) * stepLen;
-                
-                // Segment speichern
-                this.segments.push({
-                    x1: currentX, y1: currentY, x2: nextX, y2: nextY,
-                    w: currentWidth, 
-                    delay: segmentStartDelay + (i/steps) * 0.1 // Berechnet, wann es gezeichnet wird
-                });
-
-                // --- BLÜTEN SPAWNEN ---
-                // 1. Seitliche Blüten und Knospen direkt am Ast (Häufiger bei dünnen Ästen)
-                if (depth >= 2 && Math.random() < 0.15) {
-                    let bloomAngle = currentAngle + (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random());
-                    let bSize = 8 + Math.random() * 8; // Kleine Knospen/Blüten
-                    this.blooms.push(new ClusterBloom(nextX, nextY, bloomAngle, bSize, this.palette, segmentStartDelay + (i/steps)*0.1 + 0.1));
-                }
-
-                currentX = nextX;
-                currentY = nextY;
-                currentWidth *= 0.92; // Ast wird dünner
-            }
-
-            // --- VERZWEIGUNGEN AM ENDE DES ASTES ---
             if (depth < maxDepth) {
-                // 2 bis 3 neue Äste
-                let branches = Math.random() > 0.3 ? 2 : 3;
-                // Bei ganz dünnen Ästen manchmal aufhören
-                if (depth > 4 && Math.random() > 0.6) branches = 0;
-
-                for (let b = 0; b < branches; b++) {
-                    let newAngle = currentAngle + (Math.random() - 0.5) * 1.2;
-                    let newLength = length * (0.6 + Math.random() * 0.3);
-                    let newWidth = currentWidth * (0.6 + Math.random() * 0.2);
-                    this.generateBranch(currentX, currentY, newAngle, newWidth, newLength, depth + 1, maxDepth);
+                // Je dünner der Ast, desto mehr verzweigt er sich (2 bis 4 neue Äste)
+                let numBranches = depth === 0 ? 2 : (2 + Math.floor(Math.random()*2));
+                
+                for (let i = 0; i < numBranches; i++) {
+                    let newAngle = angle + (Math.random() - 0.5) * 1.5;
+                    let newLen = length * (0.5 + Math.random() * 0.3);
+                    let newWidth = width * 0.6;
+                    this.generateBranch(endX, endY, newAngle, newLen, newWidth, depth + 1, maxDepth);
                 }
-            }
-            
-            // --- END-BLÜTEN (Cluster an den Astspitzen) ---
-            if (depth >= 3) {
-                // 1 dicke Hauptblüte am Ende
-                this.blooms.push(new ClusterBloom(currentX, currentY, currentAngle, 15 + Math.random() * 12, this.palette, segmentStartDelay + 0.1));
-                // 1-2 kleine Nebenblüten
-                if (Math.random() > 0.4) {
-                    this.blooms.push(new ClusterBloom(currentX + (Math.random()-0.5)*10, currentY + (Math.random()-0.5)*10, currentAngle + 1, 8 + Math.random() * 5, this.palette, segmentStartDelay + 0.15));
+            } else {
+                // Wenn Ast aufhört: Einen dichten Cluster aus vielen Blüten generieren
+                let numBlooms = 2 + Math.floor(Math.random()*3); // 2-4 Blüten pro Astende
+                for(let b = 0; b < numBlooms; b++) {
+                    let bAngle = angle + (Math.random()-0.5)*2;
+                    let offsetX = endX + (Math.random()-0.5)*15;
+                    let offsetY = endY + (Math.random()-0.5)*15;
+                    // Zufällige Tiefen-Ebene (0 = vorne/groß, 3 = hinten/klein)
+                    let dLevel = Math.random() * 3; 
+                    
+                    this.blooms.push(new DetailBloom(offsetX, offsetY, bAngle, this.palette.baseHue, dLevel));
                 }
             }
         }
 
         update() {
-            if (this.globalProgress < 2.5) { // Läuft länger, da Struktur komplexer
-                this.globalProgress += 0.006; 
+            if (this.globalProgress < 2) { 
+                this.globalProgress += 0.015; 
+            } else {
+                this.isFinished = true;
             }
-            this.blooms.forEach(b => b.update(this.globalProgress));
-
-            // Zufälliger Blütenregen, wenn Baum ausgewachsen
-            if (this.globalProgress > 1.5 && Math.random() < 0.02) {
-                // Sucht sich eine zufällige Blüte
-                let b = this.blooms[Math.floor(Math.random() * this.blooms.length)];
-                if (b.progress > 0.8) {
-                    windParticles.push(new WindPetal(b.x, b.y, this.palette.b1, this.palette.b2, b.maxSize));
-                }
-            }
+            this.blooms.forEach(b => b.update(this.globalProgress - 0.8)); // Blüten starten, wenn Äste fast fertig sind
         }
 
         drawStems(ctx) {
             ctx.lineCap = 'round';
-            this.segments.forEach(seg => {
-                if (this.globalProgress > seg.delay) {
-                    // Wie weit ist dieses spezifische Segment gezeichnet?
-                    let segProgress = Math.min(1, (this.globalProgress - seg.delay) * 20);
+            this.branches.forEach(b => {
+                if (this.globalProgress > b.delay) {
+                    let p = Math.min(1, (this.globalProgress - b.delay) * 5); // Schnelles Astwachstum
                     
-                    let drawX = seg.x1 + (seg.x2 - seg.x1) * segProgress;
-                    let drawY = seg.y1 + (seg.y2 - seg.y1) * segProgress;
+                    // Berechnet den aktuellen Endpunkt entlang der Bezier-Kurve
+                    let curX = Math.pow(1-p, 2)*b.x1 + 2*(1-p)*p*b.cpX + Math.pow(p,2)*b.x2;
+                    let curY = Math.pow(1-p, 2)*b.y1 + 2*(1-p)*p*b.cpY + Math.pow(p,2)*b.y2;
+                    let curCpX = (b.x1 + curX)/2;
+                    let curCpY = (b.y1 + curY)/2;
 
-                    // Schatten/Rinden-Farbe (dick)
                     ctx.beginPath();
-                    ctx.moveTo(seg.x1, seg.y1);
-                    ctx.lineTo(drawX, drawY);
+                    ctx.moveTo(b.x1, b.y1);
+                    ctx.quadraticCurveTo(curCpX, curCpY, curX, curY);
+                    
                     ctx.strokeStyle = this.palette.bark;
-                    ctx.lineWidth = seg.w;
-                    ctx.stroke();
-
-                    // Licht-Kante für Plastizität (dünn, leicht versetzt)
-                    ctx.beginPath();
-                    ctx.moveTo(seg.x1 - seg.w*0.1, seg.y1 - seg.w*0.1);
-                    ctx.lineTo(drawX - seg.w*0.1, drawY - seg.w*0.1);
-                    ctx.strokeStyle = this.palette.highlight;
-                    ctx.lineWidth = seg.w * 0.3;
+                    ctx.lineWidth = b.w;
                     ctx.stroke();
                 }
             });
         }
 
         drawBlooms(ctx) {
-            // Um Fehler zu vermeiden, erst sortieren, dass kleine hinten und große vorne sind (Tiefeneffekt)
-            // this.blooms.sort((a, b) => a.maxSize - b.maxSize);
             this.blooms.forEach(b => b.draw(ctx));
+        }
+
+        shatter(arr) {
+            this.blooms.forEach(b => {
+                if (b.progress > 0.5) {
+                    // Erzeugt 3 bis 6 Blätter pro Blüte, die wegfliegen
+                    let count = 3 + Math.floor(Math.random()*3);
+                    for(let i=0; i<count; i++) {
+                        arr.push(new WindPetal(b.x, b.y, b.hue));
+                    }
+                }
+            });
         }
     }
 
     function spawnPlant(x, y) {
-        plants.push(new OrganicTree(x, y));
-        // Max 2 Pflanzen gleichzeitig, da hier tausende Berechnungen passieren!
-        if (plants.length > 2) plants.shift(); 
+        plants.push(new OrganicBush(x, y));
+        // Erhöhtes Limit: Bis zu 15 Pflanzen gleichzeitig auf dem Bildschirm!
+        if (plants.length > 15) plants.shift(); 
     }
 
-    function triggerWind() {
-        plants.forEach(p => {
-            if (p.globalProgress > 0.5) {
-                p.blooms.forEach(b => {
-                    if (Math.random() > 0.7) { // 30% der Blüten werfen Blätter ab
-                        windParticles.push(new WindPetal(b.x, b.y, p.palette.b1, p.palette.b2, b.maxSize));
-                    }
-                });
-            }
-        });
+    // Löst das Kunstwerk in einem riesigen Regen aus Blütenblättern auf
+    function triggerClear() {
+        if(plants.length === 0) return;
+        plants.forEach(p => p.shatter(windPetals));
+        plants = []; // Löscht alle Pflanzen
     }
 
     // --- EINGABEN ---
     let lastTap = 0;
     function handleTouch(e) {
         let now = Date.now();
-        if (now - lastTap < 300) { triggerWind(); lastTap = 0; return; }
+        // Das Doppeltippen löst NICHT mehr das Auflösen aus. (Stört beim vielen Pflanzen)
         lastTap = now;
         
         let x = e.clientX || (e.touches && e.touches[0].clientX);
@@ -342,36 +321,42 @@
     }
 
     window.addEventListener('pointerdown', handleTouch);
-    window.addEventListener('dblclick', triggerWind);
 
+    // --- SCHÜTTEL-ERKENNUNG (Der einzige Weg, um die Pflanzen aufzulösen) ---
     if (window.DeviceMotionEvent) {
         let lx = 0, ly = 0, lz = 0;
         window.addEventListener('devicemotion', (e) => {
             let acc = e.accelerationIncludingGravity;
             if (!acc) return;
-            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 15) triggerWind();
+            // Reagiert auf kräftiges Schütteln
+            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 25) {
+                triggerClear();
+            }
             lx = acc.x; ly = acc.y; lz = acc.z;
         });
     }
+    
+    // Fallback für den PC (Doppelklick löst auch auf, da man den PC nicht schütteln kann)
+    window.addEventListener('dblclick', triggerClear);
 
-    // --- ANIMATION LOOP ---
+    // --- RENDER LOOP ---
     function animate() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         plants.forEach(p => p.update());
         
-        // 1. Alle Stämme zeichnen
+        // Erst alle Äste zeichnen (liegen im Hintergrund)
         plants.forEach(p => p.drawStems(ctx));
         
-        // 2. Alle Blüten zeichnen
+        // Dann alle Blüten darüber
         plants.forEach(p => p.drawBlooms(ctx));
 
-        // 3. Fallende Blütenblätter (Windeffekt)
-        for(let i = windParticles.length - 1; i >= 0; i--) {
-            let wp = windParticles[i];
+        // Schüttel-Effekt (Herabfallende Blätter)
+        for(let i = windPetals.length - 1; i >= 0; i--) {
+            let wp = windPetals[i];
             wp.update();
             wp.draw(ctx);
-            if (wp.y > canvas.height + 50) windParticles.splice(i, 1);
+            if (wp.y > canvas.height + 50) windPetals.splice(i, 1);
         }
 
         requestAnimationFrame(animate);
