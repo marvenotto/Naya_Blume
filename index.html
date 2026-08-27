@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Für Naya</title>
+    <title>Für Naya - Generative Art</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background-color: #050406; /* Noch dunkler, damit das Rosa strahlt */
+            background-color: #030204; /* Sehr tiefes, fast schwarzes Violett für extremen Kontrast */
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         canvas { 
@@ -15,9 +15,10 @@
             touch-action: none;
         }
         .dedication {
-            position: absolute; bottom: 35px; width: 100%; text-align: center;
-            color: rgba(255, 182, 193, 0.3); letter-spacing: 5px; font-size: 12px;
-            pointer-events: none; text-transform: uppercase; animation: fadeIn 4s;
+            position: absolute; bottom: 40px; width: 100%; text-align: center;
+            color: rgba(255, 182, 193, 0.2); letter-spacing: 6px; font-size: 11px;
+            font-weight: 300; pointer-events: none; text-transform: uppercase;
+            animation: fadeIn 5s ease-in-out;
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
@@ -39,27 +40,28 @@
     resize();
 
     let plants = [];
-    let fallingObjects = [];
+    let particles = [];
 
-    // Transluzente, extrem filigrane Farbpaletten
+    // Professionelle, erwachsene Farbpaletten (Aquarell-Look)
     const palettes = [
-        { stem: 'rgba(50, 70, 55, 0.8)', c1: 'rgba(255, 255, 255, 0.85)', c2: 'rgba(255, 105, 180, 0.75)' }, 
-        { stem: 'rgba(60, 40, 55, 0.8)', c1: 'rgba(255, 228, 225, 0.85)', c2: 'rgba(199, 21, 133, 0.75)' },
-        { stem: 'rgba(45, 30, 40, 0.8)', c1: 'rgba(255, 182, 193, 0.85)', c2: 'rgba(255, 20, 147, 0.75)' },
-        { stem: 'rgba(40, 45, 50, 0.8)', c1: 'rgba(248, 200, 220, 0.85)', c2: 'rgba(216, 112, 147, 0.75)' }
+        { stem: '#2a332a', inner: '#fff0f5', outer: '#ff69b4', edge: 'rgba(255,255,255,0.4)' }, // Klassisch Rosa
+        { stem: '#30222a', inner: '#ffe4e1', outer: '#c71585', edge: 'rgba(255,200,200,0.3)' }, // Tiefes Magenta
+        { stem: '#222622', inner: '#ffdab9', outer: '#ff1493', edge: 'rgba(255,230,200,0.4)' }, // Pfirsich zu Deep Pink
+        { stem: '#1d1a24', inner: '#f8f8ff', outer: '#db7093', edge: 'rgba(255,255,255,0.5)' }  // Zartes Altrosa
     ];
 
+    // --- FALLENDE BLÜTENBLÄTTER (Phyllotaxis-Stil) ---
     class FallingPetal {
-        constructor(x, y, color1, color2, size, type) {
+        constructor(x, y, colorInner, colorOuter) {
             this.x = x; this.y = y;
-            this.vx = (Math.random() - 0.5) * 4; 
-            this.vy = (Math.random() - 1) * 2 - 0.5; 
-            this.gravity = 0.1;
+            this.vx = (Math.random() - 0.5) * 3;
+            this.vy = (Math.random() - 1) * 2;
+            this.gravity = 0.05 + Math.random() * 0.05;
             this.rotation = Math.random() * Math.PI * 2;
             this.rotSpeed = (Math.random() - 0.5) * 0.05;
-            this.size = size * (0.3 + Math.random() * 0.3);
-            this.color1 = color1;
-            this.color2 = color2;
+            this.size = Math.random() * 15 + 10;
+            this.colorOuter = colorOuter;
+            this.colorInner = colorInner;
         }
         update() {
             this.vy += this.gravity;
@@ -72,38 +74,168 @@
             ctx.translate(this.x, this.y);
             ctx.rotate(this.rotation);
             
-            let grad = ctx.createLinearGradient(0, 0, 0, this.size);
-            grad.addColorStop(0, this.color1);
-            grad.addColorStop(1, this.color2);
+            let grad = ctx.createLinearGradient(0, 0, this.size, 0);
+            grad.addColorStop(0, this.colorInner);
+            grad.addColorStop(1, this.colorOuter);
             ctx.fillStyle = grad;
+            ctx.globalAlpha = 0.7;
 
             ctx.beginPath();
-            ctx.ellipse(0, this.size/2, this.size*0.4, this.size, 0, 0, Math.PI * 2);
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(this.size*0.5, this.size*0.3, this.size, this.size*0.5, this.size*1.2, 0);
+            ctx.bezierCurveTo(this.size, -this.size*0.5, this.size*0.5, -this.size*0.3, 0, 0);
             ctx.fill();
             ctx.restore();
         }
     }
 
-    // --- FILIGRANER ZWEIG ---
+    // --- DIE NEUE BOTANIK-ENGINE ---
+    class ProfessionalBloom {
+        constructor(x, y, angle, size, palette, isMain) {
+            this.x = x; this.y = y;
+            this.baseAngle = angle;
+            this.targetSize = isMain ? size * (1.2 + Math.random()*0.4) : size * (0.5 + Math.random()*0.3);
+            this.palette = palette;
+            this.progress = 0;
+            this.petals = [];
+            
+            this.generatePhyllotaxis();
+        }
 
-    class Branch {
-        constructor(startX, startY, angle, length, width, depth, dna, isMain) {
+        // Generiert Blätter nach dem Goldenen Schnitt (Natur-Mathematik)
+        generatePhyllotaxis() {
+            let numPetals = Math.floor(40 + Math.random() * 40); // Bis zu 80 Blätter pro Blüte!
+            let goldenAngle = 137.5 * (Math.PI / 180);
+            
+            for (let i = 1; i <= numPetals; i++) {
+                // Radius und Winkel für die Spirale
+                let r = Math.sqrt(i) * (this.targetSize / Math.sqrt(numPetals));
+                let theta = i * goldenAngle + this.baseAngle;
+                
+                // Äußere Blätter sind groß und breit, innere sind klein und gebogen
+                let petalLen = (this.targetSize - r * 0.4) * (0.8 + Math.random() * 0.4);
+                let petalWidth = petalLen * (0.4 + Math.random() * 0.3);
+                
+                this.petals.push({
+                    r: r,
+                    theta: theta,
+                    len: petalLen,
+                    width: petalWidth,
+                    // Verzögerung: Äußere Blätter wachsen zuerst, dann die inneren
+                    delay: 1 - (i / numPetals) 
+                });
+            }
+            // Sortieren, damit äußere Blätter zuerst gezeichnet werden (Tiefenwirkung)
+            this.petals.sort((a, b) => b.r - a.r);
+        }
+
+        update() {
+            if (this.progress < 1) {
+                this.progress += 0.015; // Elegantes, langsames Aufblühen
+                if (this.progress > 1) this.progress = 1;
+            }
+        }
+
+        draw(ctx) {
+            if (this.progress === 0) return;
+
+            ctx.save();
+            ctx.translate(this.x, this.y);
+
+            // Jedes Blütenblatt einzeln mit extremen Details zeichnen
+            this.petals.forEach(p => {
+                // Berechne, wie weit dieses spezielle Blatt gewachsen ist
+                let pGrowth = Math.max(0, Math.min(1, (this.progress - p.delay * 0.5) * 2));
+                if (pGrowth <= 0) return;
+
+                // Sanfte Kurve beim Öffnen der Blüte (Ease-Out)
+                let easeGrowth = 1 - Math.pow(1 - pGrowth, 3);
+                
+                ctx.save();
+                ctx.rotate(p.theta);
+                
+                // Verschiebung von der Mitte nach außen (Goldene Spirale)
+                ctx.translate(p.r * easeGrowth, 0);
+
+                // Farbverlauf: Innen hell und leuchtend, außen tief und kräftig
+                let grad = ctx.createLinearGradient(0, 0, p.len * easeGrowth, 0);
+                grad.addColorStop(0, this.palette.inner);
+                grad.addColorStop(1, this.palette.outer);
+                
+                ctx.fillStyle = grad;
+                // Aquarell-Transparenz-Effekt
+                ctx.globalAlpha = 0.85;
+
+                // Gezeichnete Pfade statt simpler Kreise
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                
+                // Asymmetrische, organische Blatt-Kanten
+                let w = p.width * easeGrowth;
+                let l = p.len * easeGrowth;
+                
+                ctx.bezierCurveTo(l*0.3, w*0.8, l*0.7, w*0.9, l, 0);
+                ctx.bezierCurveTo(l*0.7, -w*0.7, l*0.3, -w*0.6, 0, 0);
+                
+                ctx.fill();
+                
+                // Zarte, helle Kontur für den filigranen Look
+                ctx.strokeStyle = this.palette.edge;
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
+                
+                // Winzige Blattadern zur Mitte hin
+                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                ctx.beginPath();
+                ctx.moveTo(0,0);
+                ctx.quadraticCurveTo(l*0.4, w*0.1, l*0.7, 0);
+                ctx.stroke();
+
+                ctx.restore();
+            });
+
+            // Goldene, komplexe Staubgefäße im Zentrum
+            if (this.progress > 0.5) {
+                let centerAlpha = (this.progress - 0.5) * 2;
+                ctx.globalAlpha = centerAlpha;
+                for(let i=0; i<15; i++) {
+                    let angle = Math.random() * Math.PI * 2;
+                    let dist = Math.random() * (this.targetSize * 0.15);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0,0);
+                    ctx.lineTo(Math.cos(angle)*dist, Math.sin(angle)*dist);
+                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.5)';
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.arc(Math.cos(angle)*dist, Math.sin(angle)*dist, 1.2, 0, Math.PI*2);
+                    ctx.fillStyle = '#ffda75';
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+    }
+
+    class OrganicBranch {
+        constructor(startX, startY, angle, length, width, depth, palette, isMain) {
             this.startX = startX; this.startY = startY; 
             this.angle = angle; this.length = length;
             this.width = width; this.depth = depth; 
-            this.dna = dna;
-            this.isMain = isMain; // Hauptast oder Nebenast (für unterschiedliche Höhen/Tiefen)
+            this.palette = palette;
+            this.isMain = isMain;
             
             this.progress = 0; 
-            this.bloomProgress = 0; 
-            // Feinere Äste wachsen etwas langsamer, organischer
-            this.speed = 0.01 + Math.random() * 0.01; 
+            this.speed = 0.01 + Math.random() * 0.008; // Sehr natürliches, ruhiges Wachstum
             
             this.children = [];
+            this.bloom = null;
             this.isFinished = false;
-            this.hasBloom = false;
             
-            this.curve = (Math.random() - 0.5) * dna.curviness; 
+            // Meander-Kurve für realistische Stängel
+            this.curve = (Math.random() - 0.5) * 0.8; 
             this.endX = this.startX; 
             this.endY = this.startY;
         }
@@ -119,37 +251,32 @@
                 this.endX = this.startX + Math.cos(this.angle + this.curve) * this.length;
                 this.endY = this.startY + Math.sin(this.angle + this.curve) * this.length;
                 
-                // Organisches Verzweigen: Wachse weiter, wenn Max-Tiefe nicht erreicht
-                if (this.depth < this.dna.maxDepth && Math.random() < 0.85) {
+                // Bis zu 4 Ebenen Tiefe für enorme Komplexität
+                if (this.depth < 4 && Math.random() < 0.8) {
                     
-                    // 1 Hauptast (wächst weiter nach oben)
-                    let mainAngle = this.angle + (Math.random() - 0.5) * 0.5;
+                    // Hauptast fortsetzen (wächst hoch)
+                    let mainAngle = this.angle + (Math.random() - 0.5) * 0.4;
                     let mainLen = this.length * (0.7 + Math.random() * 0.2);
-                    this.children.push(new Branch(this.endX, this.endY, mainAngle, mainLen, this.width * 0.6, this.depth + 1, this.dna, true));
+                    this.children.push(new OrganicBranch(this.endX, this.endY, mainAngle, mainLen, this.width * 0.65, this.depth + 1, this.palette, true));
                     
-                    // 1 bis 2 kleine Nebenäste (zweigen zur Seite ab, bleiben kürzer)
-                    let sideCount = Math.random() > 0.4 ? 2 : 1;
+                    // Filigrane, lange Nebenäste
+                    let sideCount = Math.random() > 0.3 ? 2 : 1;
                     for (let i = 0; i < sideCount; i++) {
-                        let sideAngle = this.angle + (Math.random() > 0.5 ? 1 : -1) * (0.6 + Math.random() * 0.8);
-                        let sideLen = this.length * (0.4 + Math.random() * 0.3); // Bewusst kürzer für Tiefenwirkung!
-                        this.children.push(new Branch(this.endX, this.endY, sideAngle, sideLen, this.width * 0.4, this.depth + 1, this.dna, false));
+                        let sideAngle = this.angle + (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.7);
+                        let sideLen = this.length * (0.5 + Math.random() * 0.4); 
+                        this.children.push(new OrganicBranch(this.endX, this.endY, sideAngle, sideLen, this.width * 0.4, this.depth + 1, this.palette, false));
                     }
                 } else {
-                    // Wenn Ast aufhört zu wachsen -> Blüte!
-                    this.hasBloom = true;
+                    // Erschaffe eine hochprofessionelle Blüte am Ende des Astes
+                    let bloomSize = 25 + Math.random() * 15;
+                    this.bloom = new ProfessionalBloom(this.endX, this.endY, this.angle, bloomSize, this.palette, this.isMain);
                 }
             }
 
-            // Blüte animieren
-            if (this.hasBloom && this.bloomProgress < 1) {
-                this.bloomProgress += 0.02;
-                if (this.bloomProgress > 1) this.bloomProgress = 1;
-            }
-
             this.children.forEach(c => c.update());
+            if (this.bloom) this.bloom.update();
         }
 
-        // Schritt 1: Nur die feinen Stängel zeichnen
         drawStems(ctx) {
             let curX = this.startX + Math.cos(this.angle + this.curve) * this.length * this.progress;
             let curY = this.startY + Math.sin(this.angle + this.curve) * this.length * this.progress;
@@ -160,125 +287,27 @@
             let cpY = (this.startY + curY) / 2 + Math.cos(this.angle) * 15;
             ctx.quadraticCurveTo(cpX, cpY, curX, curY);
 
-            ctx.strokeStyle = this.dna.palette.stem;
-            // Extrem filigrane Liniendicke
-            ctx.lineWidth = Math.max(0.15, this.width);
+            ctx.strokeStyle = this.palette.stem;
+            ctx.lineWidth = Math.max(0.2, this.width); // Extrem feine Linien an den Spitzen
+            ctx.globalAlpha = 1;
             ctx.stroke();
 
             this.children.forEach(c => c.drawStems(ctx));
         }
 
-        // Schritt 2: Nur die Blüten zeichnen (liegen so perfekt AUF den Ästen)
         drawBlooms(ctx) {
-            if (this.hasBloom && this.bloomProgress > 0) {
-                // Hauptäste bekommen riesige Blüten, Nebenäste zarte Knospen
-                let finalSize = this.isMain ? this.dna.bloomSize : this.dna.bloomSize * 0.5;
-                
-                // Weiche Animation durch Sinus-Kurve
-                let animatedSize = finalSize * Math.sin(this.bloomProgress * Math.PI / 2);
-                
-                let curX = this.startX + Math.cos(this.angle + this.curve) * this.length * this.progress;
-                let curY = this.startY + Math.sin(this.angle + this.curve) * this.length * this.progress;
-                
-                this.drawDetailedBloom(ctx, curX, curY, animatedSize);
-            }
+            if (this.bloom) this.bloom.draw(ctx);
             this.children.forEach(c => c.drawBlooms(ctx));
         }
 
-        drawDetailedBloom(ctx, x, y, size) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(this.angle + Math.PI/2); 
-
-            for (let layer = 0; layer < this.dna.layers; layer++) {
-                let layerSize = size * (1 - layer * 0.25);
-                let pCount = this.dna.petalCount;
-
-                ctx.rotate(Math.PI / pCount); 
-
-                let grad = ctx.createRadialGradient(0, 0, 0, 0, 0, layerSize);
-                let cInner = layer % 2 === 0 ? this.dna.color1 : this.dna.color2;
-                let cOuter = layer % 2 === 0 ? this.dna.color2 : this.dna.color1;
-                grad.addColorStop(0, cInner);
-                grad.addColorStop(1, cOuter);
-                ctx.fillStyle = grad;
-                
-                ctx.lineWidth = 0.3;
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-
-                for (let i = 0; i < pCount; i++) {
-                    ctx.save();
-                    ctx.rotate((Math.PI * 2 / pCount) * i);
-                    
-                    // Umriss des Blütenblattes
-                    ctx.beginPath();
-                    let w = layerSize * this.dna.petalWidth;
-                    let h = layerSize;
-
-                    if (this.dna.petalType === 0) {
-                        ctx.moveTo(0, 0);
-                        ctx.quadraticCurveTo(w, h * 0.5, 0, h);
-                        ctx.quadraticCurveTo(-w, h * 0.5, 0, 0);
-                    } else if (this.dna.petalType === 1) {
-                        ctx.moveTo(0, 0);
-                        ctx.bezierCurveTo(w * 1.5, h * 0.4, w, h * 0.9, 0, h);
-                        ctx.bezierCurveTo(-w, h * 0.9, -w * 1.5, h * 0.4, 0, 0);
-                    } else if (this.dna.petalType === 2) {
-                        ctx.moveTo(0, 0);
-                        ctx.bezierCurveTo(w, h * 0.4, w * 0.8, h, 0, h * 0.8);
-                        ctx.bezierCurveTo(-w * 0.8, h, -w, h * 0.4, 0, 0);
-                    }
-                    ctx.fill();
-                    
-                    // --- NEU: Filigrane, zarte Blattadern zeichnen ---
-                    ctx.beginPath();
-                    ctx.lineWidth = 0.15; // Hauchdünn
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                    // Hauptader in der Mitte
-                    ctx.moveTo(0, 0);
-                    ctx.lineTo(0, h * 0.7);
-                    // Feine Seitenadern
-                    ctx.moveTo(0, h * 0.2); ctx.quadraticCurveTo(w*0.3, h*0.4, w*0.4, h*0.5);
-                    ctx.moveTo(0, h * 0.2); ctx.quadraticCurveTo(-w*0.3, h*0.4, -w*0.4, h*0.5);
-                    ctx.moveTo(0, h * 0.4); ctx.quadraticCurveTo(w*0.2, h*0.6, w*0.2, h*0.7);
-                    ctx.moveTo(0, h * 0.4); ctx.quadraticCurveTo(-w*0.2, h*0.6, -w*0.2, h*0.7);
-                    ctx.stroke();
-
-                    ctx.restore();
-                }
-            }
-
-            // Filigrane, scharfe Staubgefäße
-            let stamenCount = this.dna.stamens;
-            for (let i = 0; i < stamenCount; i++) {
-                let a = (Math.PI * 2 / stamenCount) * i + Math.random()*0.2;
-                let d = size * 0.25;
-                
-                ctx.strokeStyle = 'rgba(255, 230, 150, 0.5)';
-                ctx.lineWidth = 0.4;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d);
-                ctx.stroke();
-
-                ctx.fillStyle = '#ffda75';
-                ctx.beginPath();
-                ctx.arc(Math.cos(a) * d, Math.sin(a) * d, size * 0.04, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            ctx.restore();
-        }
-
-        // Sammelt Blätter für den Schüttel-Effekt
         collectLeaves(arr) {
-            if (this.hasBloom && this.bloomProgress > 0) {
-                let count = this.isMain ? 10 : 4; // Mehr Blätter bei großen Blüten
+            if (this.bloom && this.bloom.progress > 0) {
+                let count = this.isMain ? 20 : 8; 
                 for(let i=0; i < count; i++) {
                     arr.push(new FallingPetal(
-                        this.endX + (Math.random()-0.5)*15, 
-                        this.endY + (Math.random()-0.5)*15, 
-                        this.dna.color1, this.dna.color2, 
-                        this.dna.bloomSize, this.dna.petalType
+                        this.bloom.x + (Math.random()-0.5)*20, 
+                        this.bloom.y + (Math.random()-0.5)*20, 
+                        this.palette.inner, this.palette.outer
                     ));
                 }
             }
@@ -288,23 +317,10 @@
 
     class PlantSystem {
         constructor(x, y) {
-            // DNA generieren für absolutes Unikat
             let p = palettes[Math.floor(Math.random() * palettes.length)];
-            this.dna = {
-                palette: p, color1: p.c1, color2: p.c2,
-                maxDepth: Math.floor(Math.random() * 2) + 4, // Viel mehr Tiefe und Äste!
-                curviness: Math.random() * 0.8 + 0.3,
-                bloomSize: Math.random() * 10 + 15, // Groß, aber durch kleine Nebenäste abwechslungsreich
-                petalType: Math.floor(Math.random() * 3), 
-                petalCount: Math.floor(Math.random() * 6) + 5, 
-                petalWidth: Math.random() * 0.4 + 0.3,
-                layers: Math.floor(Math.random() * 2) + 2, 
-                stamens: Math.floor(Math.random() * 10) + 6 
-            };
-
-            let mainAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.4;
-            // Der Hauptstamm (Basis). Zartere Startdicke (2.5 statt 3.5).
-            this.root = new Branch(x, y, mainAngle, 70 + Math.random() * 30, 2.5, 0, this.dna, true);
+            let mainAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+            // Der Hauptstamm: Elegant, organisch und sehr verästelt
+            this.root = new OrganicBranch(x, y, mainAngle, 80 + Math.random() * 40, 2.8, 0, p, true);
         }
         update() { this.root.update(); }
         drawStems(ctx) { this.root.drawStems(ctx); }
@@ -314,17 +330,17 @@
 
     function spawnStructure(x, y) {
         plants.push(new PlantSystem(x, y));
-        if (plants.length > 8) plants.shift(); // Schützt das Handy vor Lag, da sie nun viel komplexer sind
+        // Max 6 Pflanzen gleichzeitig, da jede Pflanze nun Hunderte Polygone berechnet!
+        if (plants.length > 6) plants.shift(); 
     }
 
     function triggerShake() {
         if(plants.length === 0) return;
-        plants.forEach(p => p.breakDown(fallingObjects));
+        plants.forEach(p => p.breakDown(particles));
         plants = []; 
     }
 
     // --- INTERAKTIONEN ---
-
     let lastTap = 0;
     function handleTouch(e) {
         let now = Date.now();
@@ -344,34 +360,33 @@
         window.addEventListener('devicemotion', (e) => {
             let acc = e.accelerationIncludingGravity;
             if (!acc) return;
-            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 25) triggerShake();
+            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 20) triggerShake();
             lx = acc.x; ly = acc.y; lz = acc.z;
         });
     }
 
-    // --- ANIMATION ---
-
+    // --- ANIMATION LOOP ---
     function animate() {
-        // Tiefer, reiner Hintergrund
-        ctx.fillStyle = '#050406'; 
+        // Tiefer, reiner Hintergrund für maximalen Kontrast (Kein Verwischen mehr!)
+        ctx.fillStyle = '#030204'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 1. Alle updaten
         plants.forEach(p => p.update());
         
-        // 2. ERST alle Stängel zeichnen (Hintergrund)
+        // Zuerst alle Zweige im Hintergrund
         plants.forEach(p => p.drawStems(ctx));
         
-        // 3. DANN alle Blüten zeichnen (Vordergrund, liegen perfekt auf)
+        // Dann die komplexen Blüten im Vordergrund
+        // ctx.globalCompositeOperation = 'lighter'; // (Optional: Macht die Blüten leuchtender)
         plants.forEach(p => p.drawBlooms(ctx));
+        ctx.globalCompositeOperation = 'source-over'; 
 
-        // 4. Fallende Blätter beim Schütteln
-        for(let i = fallingObjects.length - 1; i >= 0; i--) {
-            let obj = fallingObjects[i];
+        for(let i = particles.length - 1; i >= 0; i--) {
+            let obj = particles[i];
             obj.update();
             obj.draw(ctx);
             if (obj.y > canvas.height + 50) {
-                fallingObjects.splice(i, 1);
+                particles.splice(i, 1);
             }
         }
 
