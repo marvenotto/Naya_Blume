@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Für Naya - Generative Art</title>
+    <title>Für Naya - 3D Sculpted Art</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background-color: #030204; /* Sehr tiefes, fast schwarzes Violett für extremen Kontrast */
+            /* Ein extrem dunkles, sattes Blau-Violett als edler Hintergrund */
+            background: radial-gradient(circle at center, #1a1525 0%, #0a0810 100%);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         canvas { 
@@ -16,9 +17,9 @@
         }
         .dedication {
             position: absolute; bottom: 40px; width: 100%; text-align: center;
-            color: rgba(255, 182, 193, 0.2); letter-spacing: 6px; font-size: 11px;
+            color: rgba(255, 182, 193, 0.25); letter-spacing: 6px; font-size: 12px;
             font-weight: 300; pointer-events: none; text-transform: uppercase;
-            animation: fadeIn 5s ease-in-out;
+            animation: fadeIn 4s ease-in-out;
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
@@ -40,98 +41,98 @@
     resize();
 
     let plants = [];
-    let particles = [];
+    let fallingPetals = [];
 
-    // Professionelle, erwachsene Farbpaletten (Aquarell-Look)
+    // Meisterklasse-Farbpaletten inspiriert von deinem Bild
     const palettes = [
-        { stem: '#2a332a', inner: '#fff0f5', outer: '#ff69b4', edge: 'rgba(255,255,255,0.4)' }, // Klassisch Rosa
-        { stem: '#30222a', inner: '#ffe4e1', outer: '#c71585', edge: 'rgba(255,200,200,0.3)' }, // Tiefes Magenta
-        { stem: '#222622', inner: '#ffdab9', outer: '#ff1493', edge: 'rgba(255,230,200,0.4)' }, // Pfirsich zu Deep Pink
-        { stem: '#1d1a24', inner: '#f8f8ff', outer: '#db7093', edge: 'rgba(255,255,255,0.5)' }  // Zartes Altrosa
+        // Lotus aus deinem Bild (Pfirsich / Magenta / Tiefes Violett)
+        { stem: '#2a1b38', shadow: '#310a31', mid: '#b83b70', highlight: '#ff9e7d', core: '#5c1049' },
+        // Kühle Eleganz (Silberrosa / Deep Pink / Marineblau)
+        { stem: '#161a29', shadow: '#25163b', mid: '#d13872', highlight: '#fbc5d6', core: '#3a0c3a' },
+        // Warmer Sonnenuntergang (Weinrot / Lachs / Goldrosa)
+        { stem: '#2b1a1c', shadow: '#420b23', mid: '#e35d6a', highlight: '#ffcba4', core: '#2b0413' }
     ];
 
-    // --- FALLENDE BLÜTENBLÄTTER (Phyllotaxis-Stil) ---
+    // --- FALLENDE BLÄTTER (Mit 3D-Drehung) ---
     class FallingPetal {
-        constructor(x, y, colorInner, colorOuter) {
+        constructor(x, y, palette, size) {
             this.x = x; this.y = y;
-            this.vx = (Math.random() - 0.5) * 3;
-            this.vy = (Math.random() - 1) * 2;
-            this.gravity = 0.05 + Math.random() * 0.05;
+            this.vx = (Math.random() - 0.5) * 4;
+            this.vy = (Math.random() - 1) * 3 - 1;
+            this.gravity = 0.08 + Math.random() * 0.05;
             this.rotation = Math.random() * Math.PI * 2;
-            this.rotSpeed = (Math.random() - 0.5) * 0.05;
-            this.size = Math.random() * 15 + 10;
-            this.colorOuter = colorOuter;
-            this.colorInner = colorInner;
+            this.rotSpeed = (Math.random() - 0.5) * 0.1;
+            this.size = size * (0.4 + Math.random() * 0.3);
+            this.palette = palette;
+            // Faktor für 3D-Flip-Effekt im Fall
+            this.flip = Math.random() * Math.PI; 
+            this.flipSpeed = 0.05 + Math.random() * 0.05;
         }
         update() {
             this.vy += this.gravity;
             this.x += this.vx;
             this.y += this.vy;
             this.rotation += this.rotSpeed;
+            this.flip += this.flipSpeed;
         }
         draw(ctx) {
             ctx.save();
             ctx.translate(this.x, this.y);
             ctx.rotate(this.rotation);
+            ctx.scale(Math.sin(this.flip), 1); // Erzeugt eine optische 3D-Drehung
             
-            let grad = ctx.createLinearGradient(0, 0, this.size, 0);
-            grad.addColorStop(0, this.colorInner);
-            grad.addColorStop(1, this.colorOuter);
+            let grad = ctx.createLinearGradient(0, 0, 0, this.size);
+            grad.addColorStop(0, this.palette.highlight);
+            grad.addColorStop(1, this.palette.shadow);
             ctx.fillStyle = grad;
-            ctx.globalAlpha = 0.7;
 
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.bezierCurveTo(this.size*0.5, this.size*0.3, this.size, this.size*0.5, this.size*1.2, 0);
-            ctx.bezierCurveTo(this.size, -this.size*0.5, this.size*0.5, -this.size*0.3, 0, 0);
+            ctx.bezierCurveTo(this.size*0.4, this.size*0.3, this.size*0.3, this.size*0.8, 0, this.size);
+            ctx.bezierCurveTo(-this.size*0.3, this.size*0.8, -this.size*0.4, this.size*0.3, 0, 0);
             ctx.fill();
             ctx.restore();
         }
     }
 
-    // --- DIE NEUE BOTANIK-ENGINE ---
-    class ProfessionalBloom {
-        constructor(x, y, angle, size, palette, isMain) {
+    // --- DIE 3D BLÜTE ---
+    class SculptedBloom {
+        constructor(x, y, angle, size, palette) {
             this.x = x; this.y = y;
             this.baseAngle = angle;
-            this.targetSize = isMain ? size * (1.2 + Math.random()*0.4) : size * (0.5 + Math.random()*0.3);
+            this.targetSize = size;
             this.palette = palette;
             this.progress = 0;
             this.petals = [];
-            
-            this.generatePhyllotaxis();
+            this.generatePetals();
         }
 
-        // Generiert Blätter nach dem Goldenen Schnitt (Natur-Mathematik)
-        generatePhyllotaxis() {
-            let numPetals = Math.floor(40 + Math.random() * 40); // Bis zu 80 Blätter pro Blüte!
-            let goldenAngle = 137.5 * (Math.PI / 180);
+        generatePetals() {
+            let layers = 4;
+            let totalPetals = 0;
             
-            for (let i = 1; i <= numPetals; i++) {
-                // Radius und Winkel für die Spirale
-                let r = Math.sqrt(i) * (this.targetSize / Math.sqrt(numPetals));
-                let theta = i * goldenAngle + this.baseAngle;
-                
-                // Äußere Blätter sind groß und breit, innere sind klein und gebogen
-                let petalLen = (this.targetSize - r * 0.4) * (0.8 + Math.random() * 0.4);
-                let petalWidth = petalLen * (0.4 + Math.random() * 0.3);
-                
-                this.petals.push({
-                    r: r,
-                    theta: theta,
-                    len: petalLen,
-                    width: petalWidth,
-                    // Verzögerung: Äußere Blätter wachsen zuerst, dann die inneren
-                    delay: 1 - (i / numPetals) 
-                });
+            // Schichten von außen nach innen aufbauen
+            for (let l = layers; l > 0; l--) {
+                let pCount = 5 + l * 2; // Außen mehr Blätter, innen weniger
+                let layerSize = this.targetSize * (l / layers);
+                let offsetAngle = (Math.PI * 2 / pCount) * 0.5 * (l % 2); // Versatz der Schichten
+
+                for (let i = 0; i < pCount; i++) {
+                    let angle = (Math.PI * 2 / pCount) * i + offsetAngle + this.baseAngle;
+                    this.petals.push({
+                        angle: angle + (Math.random()-0.5)*0.2, // Leichte organische Unregelmäßigkeit
+                        size: layerSize * (0.8 + Math.random()*0.2),
+                        widthMod: 0.35 + Math.random()*0.15,
+                        delay: 1 - (l / layers) // Außen öffnet zuerst
+                    });
+                }
             }
-            // Sortieren, damit äußere Blätter zuerst gezeichnet werden (Tiefenwirkung)
-            this.petals.sort((a, b) => b.r - a.r);
         }
 
         update() {
             if (this.progress < 1) {
-                this.progress += 0.015; // Elegantes, langsames Aufblühen
+                // Ease-Out-Kurve für geschmeidiges Öffnen
+                this.progress += 0.012; 
                 if (this.progress > 1) this.progress = 1;
             }
         }
@@ -142,76 +143,86 @@
             ctx.save();
             ctx.translate(this.x, this.y);
 
-            // Jedes Blütenblatt einzeln mit extremen Details zeichnen
-            this.petals.forEach(p => {
-                // Berechne, wie weit dieses spezielle Blatt gewachsen ist
-                let pGrowth = Math.max(0, Math.min(1, (this.progress - p.delay * 0.5) * 2));
-                if (pGrowth <= 0) return;
+            // Sanftes Skalieren beim Aufblühen
+            let bloomScale = Math.sin(this.progress * Math.PI / 2);
+            ctx.scale(bloomScale, bloomScale);
 
-                // Sanfte Kurve beim Öffnen der Blüte (Ease-Out)
-                let easeGrowth = 1 - Math.pow(1 - pGrowth, 3);
+            // Echte Schlagschatten für die Blütenblätter
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 4;
+
+            this.petals.forEach(p => {
+                let pGrowth = Math.max(0, Math.min(1, (this.progress - p.delay * 0.4) * 2));
+                if (pGrowth <= 0) return;
+                
+                let currentSize = p.size * Math.pow(pGrowth, 0.8);
                 
                 ctx.save();
-                ctx.rotate(p.theta);
+                ctx.rotate(p.angle);
                 
-                // Verschiebung von der Mitte nach außen (Goldene Spirale)
-                ctx.translate(p.r * easeGrowth, 0);
+                let w = currentSize * p.widthMod;
+                let h = currentSize;
 
-                // Farbverlauf: Innen hell und leuchtend, außen tief und kräftig
-                let grad = ctx.createLinearGradient(0, 0, p.len * easeGrowth, 0);
-                grad.addColorStop(0, this.palette.inner);
-                grad.addColorStop(1, this.palette.outer);
+                // --- 3D KNICK-TECHNIK (Das Geheimnis für den Realismus) ---
                 
-                ctx.fillStyle = grad;
-                // Aquarell-Transparenz-Effekt
-                ctx.globalAlpha = 0.85;
-
-                // Gezeichnete Pfade statt simpler Kreise
+                // Rechte Blatthälfte (Liegt im Licht)
+                let gradRight = ctx.createLinearGradient(0, 0, w, h);
+                gradRight.addColorStop(0, this.palette.core);
+                gradRight.addColorStop(0.3, this.palette.mid);
+                gradRight.addColorStop(1, this.palette.highlight);
+                
+                ctx.fillStyle = gradRight;
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                
-                // Asymmetrische, organische Blatt-Kanten
-                let w = p.width * easeGrowth;
-                let l = p.len * easeGrowth;
-                
-                ctx.bezierCurveTo(l*0.3, w*0.8, l*0.7, w*0.9, l, 0);
-                ctx.bezierCurveTo(l*0.7, -w*0.7, l*0.3, -w*0.6, 0, 0);
-                
+                // Geschwungene Außenkante
+                ctx.bezierCurveTo(w * 1.2, h * 0.3, w * 0.8, h * 0.8, 0, h);
+                // Mittellinie (Knick)
+                ctx.lineTo(0, 0); 
                 ctx.fill();
-                
-                // Zarte, helle Kontur für den filigranen Look
-                ctx.strokeStyle = this.palette.edge;
-                ctx.lineWidth = 0.5;
-                ctx.stroke();
-                
-                // Winzige Blattadern zur Mitte hin
-                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+
+                // Linke Blatthälfte (Liegt im Eigenschatten)
+                let gradLeft = ctx.createLinearGradient(0, 0, -w, h);
+                gradLeft.addColorStop(0, this.palette.core);
+                gradLeft.addColorStop(0.5, this.palette.shadow);
+                gradLeft.addColorStop(1, this.palette.mid);
+
+                ctx.fillStyle = gradLeft;
                 ctx.beginPath();
-                ctx.moveTo(0,0);
-                ctx.quadraticCurveTo(l*0.4, w*0.1, l*0.7, 0);
-                ctx.stroke();
+                ctx.moveTo(0, 0);
+                // Geschwungene Außenkante
+                ctx.bezierCurveTo(-w * 1.2, h * 0.3, -w * 0.8, h * 0.8, 0, h);
+                // Mittellinie (Knick)
+                ctx.lineTo(0, 0); 
+                ctx.fill();
 
                 ctx.restore();
             });
 
-            // Goldene, komplexe Staubgefäße im Zentrum
-            if (this.progress > 0.5) {
-                let centerAlpha = (this.progress - 0.5) * 2;
+            // Schatten für das Zentrum deaktivieren
+            ctx.shadowColor = 'transparent';
+
+            // Das detaillierte Zentrum (Staubgefäße) wie auf deinem Bild
+            if (this.progress > 0.6) {
+                let centerAlpha = (this.progress - 0.6) * 2.5;
                 ctx.globalAlpha = centerAlpha;
-                for(let i=0; i<15; i++) {
-                    let angle = Math.random() * Math.PI * 2;
-                    let dist = Math.random() * (this.targetSize * 0.15);
+                
+                for(let i = 0; i < 20; i++) {
+                    let a = Math.random() * Math.PI * 2;
+                    let d = Math.random() * (this.targetSize * 0.2);
                     
+                    // Feine Stiele
+                    ctx.strokeStyle = this.palette.mid;
+                    ctx.lineWidth = 0.8;
                     ctx.beginPath();
                     ctx.moveTo(0,0);
-                    ctx.lineTo(Math.cos(angle)*dist, Math.sin(angle)*dist);
-                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.5)';
-                    ctx.lineWidth = 0.5;
+                    ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d);
                     ctx.stroke();
                     
+                    // Leuchtende Pollenkappen
+                    ctx.fillStyle = this.palette.highlight;
                     ctx.beginPath();
-                    ctx.arc(Math.cos(angle)*dist, Math.sin(angle)*dist, 1.2, 0, Math.PI*2);
-                    ctx.fillStyle = '#ffda75';
+                    ctx.arc(Math.cos(a) * d, Math.sin(a) * d, 1.5, 0, Math.PI * 2);
                     ctx.fill();
                 }
             }
@@ -219,25 +230,23 @@
         }
     }
 
-    class OrganicBranch {
-        constructor(startX, startY, angle, length, width, depth, palette, isMain) {
-            this.startX = startX; this.startY = startY; 
-            this.angle = angle; this.length = length;
-            this.width = width; this.depth = depth; 
+    // --- DER ELEGANTE STAMM ---
+    class MajesticPlant {
+        constructor(x, y, palette) {
+            this.startX = x; this.startY = y; 
+            this.angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.4; 
+            this.length = 120 + Math.random() * 80;
             this.palette = palette;
-            this.isMain = isMain;
             
             this.progress = 0; 
-            this.speed = 0.01 + Math.random() * 0.008; // Sehr natürliches, ruhiges Wachstum
+            this.speed = 0.01 + Math.random() * 0.005; // Sehr elegantes Wachstum
             
-            this.children = [];
-            this.bloom = null;
-            this.isFinished = false;
-            
-            // Meander-Kurve für realistische Stängel
-            this.curve = (Math.random() - 0.5) * 0.8; 
+            this.curve = (Math.random() - 0.5) * 0.6; 
             this.endX = this.startX; 
             this.endY = this.startY;
+            
+            this.bloom = null;
+            this.isFinished = false;
         }
 
         update() {
@@ -251,96 +260,68 @@
                 this.endX = this.startX + Math.cos(this.angle + this.curve) * this.length;
                 this.endY = this.startY + Math.sin(this.angle + this.curve) * this.length;
                 
-                // Bis zu 4 Ebenen Tiefe für enorme Komplexität
-                if (this.depth < 4 && Math.random() < 0.8) {
-                    
-                    // Hauptast fortsetzen (wächst hoch)
-                    let mainAngle = this.angle + (Math.random() - 0.5) * 0.4;
-                    let mainLen = this.length * (0.7 + Math.random() * 0.2);
-                    this.children.push(new OrganicBranch(this.endX, this.endY, mainAngle, mainLen, this.width * 0.65, this.depth + 1, this.palette, true));
-                    
-                    // Filigrane, lange Nebenäste
-                    let sideCount = Math.random() > 0.3 ? 2 : 1;
-                    for (let i = 0; i < sideCount; i++) {
-                        let sideAngle = this.angle + (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.7);
-                        let sideLen = this.length * (0.5 + Math.random() * 0.4); 
-                        this.children.push(new OrganicBranch(this.endX, this.endY, sideAngle, sideLen, this.width * 0.4, this.depth + 1, this.palette, false));
-                    }
-                } else {
-                    // Erschaffe eine hochprofessionelle Blüte am Ende des Astes
-                    let bloomSize = 25 + Math.random() * 15;
-                    this.bloom = new ProfessionalBloom(this.endX, this.endY, this.angle, bloomSize, this.palette, this.isMain);
-                }
+                // Eine riesige, komplexe Hauptblüte pro Pflanze
+                let bloomSize = 45 + Math.random() * 25; // Extrem groß für den Wow-Effekt
+                this.bloom = new SculptedBloom(this.endX, this.endY, this.angle, bloomSize, this.palette);
             }
 
-            this.children.forEach(c => c.update());
             if (this.bloom) this.bloom.update();
         }
 
-        drawStems(ctx) {
+        drawStem(ctx) {
             let curX = this.startX + Math.cos(this.angle + this.curve) * this.length * this.progress;
             let curY = this.startY + Math.sin(this.angle + this.curve) * this.length * this.progress;
             
             ctx.beginPath();
             ctx.moveTo(this.startX, this.startY);
-            let cpX = (this.startX + curX) / 2 + Math.sin(this.angle) * 15;
-            let cpY = (this.startY + curY) / 2 + Math.cos(this.angle) * 15;
+            let cpX = (this.startX + curX) / 2 + Math.sin(this.angle) * 25;
+            let cpY = (this.startY + curY) / 2 + Math.cos(this.angle) * 25;
             ctx.quadraticCurveTo(cpX, cpY, curX, curY);
 
-            ctx.strokeStyle = this.palette.stem;
-            ctx.lineWidth = Math.max(0.2, this.width); // Extrem feine Linien an den Spitzen
-            ctx.globalAlpha = 1;
+            // Stiel mit leichtem Farbverlauf
+            let grad = ctx.createLinearGradient(this.startX, this.startY, curX, curY);
+            grad.addColorStop(0, '#0a0810');
+            grad.addColorStop(1, this.palette.stem);
+            
+            ctx.strokeStyle = grad;
+            // Stamm wird nach oben hin dünner
+            ctx.lineWidth = 4 * (1 - this.progress) + 1; 
             ctx.stroke();
-
-            this.children.forEach(c => c.drawStems(ctx));
         }
 
-        drawBlooms(ctx) {
+        drawBloom(ctx) {
             if (this.bloom) this.bloom.draw(ctx);
-            this.children.forEach(c => c.drawBlooms(ctx));
         }
 
-        collectLeaves(arr) {
-            if (this.bloom && this.bloom.progress > 0) {
-                let count = this.isMain ? 20 : 8; 
-                for(let i=0; i < count; i++) {
+        shatter(arr) {
+            if (this.bloom && this.bloom.progress > 0.5) {
+                let petalCount = this.bloom.petals.length;
+                for(let i=0; i < petalCount; i++) {
                     arr.push(new FallingPetal(
-                        this.bloom.x + (Math.random()-0.5)*20, 
-                        this.bloom.y + (Math.random()-0.5)*20, 
-                        this.palette.inner, this.palette.outer
+                        this.bloom.x + (Math.random()-0.5)*30, 
+                        this.bloom.y + (Math.random()-0.5)*30, 
+                        this.palette, 
+                        this.bloom.targetSize
                     ));
                 }
             }
-            this.children.forEach(c => c.collectLeaves(arr));
         }
     }
 
-    class PlantSystem {
-        constructor(x, y) {
-            let p = palettes[Math.floor(Math.random() * palettes.length)];
-            let mainAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
-            // Der Hauptstamm: Elegant, organisch und sehr verästelt
-            this.root = new OrganicBranch(x, y, mainAngle, 80 + Math.random() * 40, 2.8, 0, p, true);
-        }
-        update() { this.root.update(); }
-        drawStems(ctx) { this.root.drawStems(ctx); }
-        drawBlooms(ctx) { this.root.drawBlooms(ctx); }
-        breakDown(arr) { this.root.collectLeaves(arr); }
-    }
-
-    function spawnStructure(x, y) {
-        plants.push(new PlantSystem(x, y));
-        // Max 6 Pflanzen gleichzeitig, da jede Pflanze nun Hunderte Polygone berechnet!
-        if (plants.length > 6) plants.shift(); 
+    function spawnPlant(x, y) {
+        let p = palettes[Math.floor(Math.random() * palettes.length)];
+        plants.push(new MajesticPlant(x, y, p));
+        // Halte die Anzahl gering, da diese 3D-Schatten viel Rechenleistung brauchen!
+        if (plants.length > 5) plants.shift(); 
     }
 
     function triggerShake() {
         if(plants.length === 0) return;
-        plants.forEach(p => p.breakDown(particles));
+        plants.forEach(p => p.shatter(fallingPetals));
         plants = []; 
     }
 
-    // --- INTERAKTIONEN ---
+    // --- EINGABEN ---
     let lastTap = 0;
     function handleTouch(e) {
         let now = Date.now();
@@ -349,7 +330,7 @@
         
         let x = e.clientX || (e.touches && e.touches[0].clientX);
         let y = e.clientY || (e.touches && e.touches[0].clientY);
-        if(x !== undefined && y !== undefined) spawnStructure(x, y);
+        if(x !== undefined && y !== undefined) spawnPlant(x, y);
     }
 
     window.addEventListener('pointerdown', handleTouch);
@@ -365,28 +346,25 @@
         });
     }
 
-    // --- ANIMATION LOOP ---
+    // --- RENDER LOOP ---
     function animate() {
-        // Tiefer, reiner Hintergrund für maximalen Kontrast (Kein Verwischen mehr!)
-        ctx.fillStyle = '#030204'; 
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Komplett leeren für saubere Schatten
 
         plants.forEach(p => p.update());
         
-        // Zuerst alle Zweige im Hintergrund
-        plants.forEach(p => p.drawStems(ctx));
+        // 1. Zuerst alle Stämme zeichnen
+        plants.forEach(p => p.drawStem(ctx));
         
-        // Dann die komplexen Blüten im Vordergrund
-        // ctx.globalCompositeOperation = 'lighter'; // (Optional: Macht die Blüten leuchtender)
-        plants.forEach(p => p.drawBlooms(ctx));
-        ctx.globalCompositeOperation = 'source-over'; 
+        // 2. Dann die großen 3D-Blüten
+        plants.forEach(p => p.drawBloom(ctx));
 
-        for(let i = particles.length - 1; i >= 0; i--) {
-            let obj = particles[i];
+        // 3. Fallende Blätter beim Schütteln
+        for(let i = fallingPetals.length - 1; i >= 0; i--) {
+            let obj = fallingPetals[i];
             obj.update();
             obj.draw(ctx);
-            if (obj.y > canvas.height + 50) {
-                particles.splice(i, 1);
+            if (obj.y > canvas.height + 100) {
+                fallingPetals.splice(i, 1);
             }
         }
 
