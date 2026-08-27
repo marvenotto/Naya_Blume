@@ -12,7 +12,7 @@
         }
         canvas { 
             display: block; width: 100%; height: 100%; 
-            touch-action: none; /* Blockiert störendes Wischen, damit Klicks zu 100% erkannt werden */
+            touch-action: none;
         }
         .dedication {
             position: absolute; bottom: 35px; width: 100%; text-align: center;
@@ -39,13 +39,98 @@
     resize();
 
     let structures = [];
+    let fallingObjects = [];
 
+    // Edle Pink-/Rosatöne für die wachsenden Blumen (Farbverläufe)
     const palettes = [
-        { stem: '#1a2e20', branch: '#3b5c43', bloom1: 'rgba(255, 228, 225, 0.9)', bloom2: 'rgba(255, 182, 193, 0.7)' },
-        { stem: '#241024', branch: '#4a244a', bloom1: 'rgba(255, 105, 180, 0.9)', bloom2: 'rgba(199, 21, 133, 0.7)' },
-        { stem: '#2b141e', branch: '#54263a', bloom1: 'rgba(255, 61, 142, 0.8)', bloom2: 'rgba(220, 20, 60, 0.6)' },
-        { stem: '#1f1c23', branch: '#3e3747', bloom1: 'rgba(244, 164, 212, 0.9)', bloom2: 'rgba(216, 112, 147, 0.7)' }
+        { stem: '#1a2e20', branch: '#3b5c43', center: '#fff0f5', edge: '#ffb6c1' },
+        { stem: '#241024', branch: '#4a244a', center: '#ffe4e1', edge: '#ff69b4' },
+        { stem: '#2b141e', branch: '#54263a', center: '#fff', edge: '#ff1493' },
+        { stem: '#1f1c23', branch: '#3e3747', center: '#f8f8ff', edge: '#db7093' }
     ];
+
+    // --- KLASSEN FÜR EFFEKTE ---
+
+    class FallingPetal {
+        constructor(x, y, colorEdge, colorCenter) {
+            this.x = x; this.y = y;
+            this.vx = (Math.random() - 0.5) * 8; // Fliegt zur Seite
+            this.vy = (Math.random() - 1) * 3 - 2; // Kurzer Auftrieb, dann Fall
+            this.gravity = 0.2;
+            this.rotation = Math.random() * Math.PI * 2;
+            this.rotSpeed = (Math.random() - 0.5) * 0.2;
+            this.size = Math.random() * 2 + 1;
+            this.colorEdge = colorEdge;
+            this.colorCenter = colorCenter;
+        }
+        update() {
+            this.vy += this.gravity;
+            this.x += this.vx;
+            this.y += this.vy;
+            this.rotation += this.rotSpeed;
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.rotation);
+            ctx.fillStyle = this.colorEdge;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.size * 2, this.size, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    class FallingLily {
+        constructor(x, y) {
+            this.x = x; this.y = y;
+            this.vx = (Math.random() - 0.5) * 2; // Sanftes Wehen
+            this.vy = Math.random() * 2 + 1.5;   // Sanfter Fall
+            this.rotation = Math.random() * Math.PI * 2;
+            this.rotSpeed = (Math.random() - 0.5) * 0.05;
+            this.size = Math.random() * 12 + 10; // Größe der Lilie
+            this.hue = 300 + Math.random() * 45; // Zufälliges Pink/Magenta (300 bis 345)
+            this.wobble = Math.random() * Math.PI;
+        }
+        update() {
+            this.x += this.vx + Math.sin(this.wobble) * 1.5; // Windeffekt
+            this.y += this.vy;
+            this.rotation += this.rotSpeed;
+            this.wobble += 0.05;
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.rotation);
+            
+            // 6 Lilien-Blütenblätter mit realistischem Farbverlauf
+            for(let i=0; i<6; i++) {
+                ctx.rotate(Math.PI / 3);
+                let grad = ctx.createLinearGradient(0, 0, this.size, 0);
+                grad.addColorStop(0, '#ffffff'); // Mitte weiß
+                grad.addColorStop(0.3, `hsl(${this.hue}, 80%, 85%)`); // Zartrosa
+                grad.addColorStop(1, `hsl(${this.hue}, 80%, 55%)`); // Kräftiges Pink am Rand
+                
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                // Spitz zulaufende Lilienform
+                ctx.ellipse(this.size/2, 0, this.size/2, this.size/5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Goldene Staubblätter in der Mitte
+            ctx.fillStyle = '#e6b325';
+            for(let i=0; i<4; i++) {
+                ctx.rotate(Math.PI / 2 + Math.random()*0.2);
+                ctx.beginPath();
+                ctx.arc(this.size/4, 0, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
+
+    // --- WACHSENDE PFLANZE ---
 
     class PinkFlower {
         constructor(x, y, angle, length, width, depth, palette, petalShape) {
@@ -56,23 +141,26 @@
             this.speed = 0.015 + Math.random() * 0.02;
             this.children = [];
             this.hasGrownChildren = false;
-            this.curve = (Math.random() - 0.5) * 1.0; 
+            this.curve = (Math.random() - 0.5) * 1.2; 
+            
+            // Speichere die Endkoordinaten für den Schüttel-Effekt
+            this.endX = this.x; this.endY = this.y;
         }
 
         update() {
             if (this.progress < 1) {
                 this.progress += this.speed;
                 if (this.progress > 1) this.progress = 1;
-            } else if (!this.hasGrownChildren && this.depth < 6) {
+            } else if (!this.hasGrownChildren && this.depth < 5) { // Etwas weniger Tiefe für Platz
                 this.hasGrownChildren = true;
-                let endX = this.x + Math.cos(this.angle + this.curve) * this.length;
-                let endY = this.y + Math.sin(this.angle + this.curve) * this.length;
+                this.endX = this.x + Math.cos(this.angle + this.curve) * this.length;
+                this.endY = this.y + Math.sin(this.angle + this.curve) * this.length;
                 
-                let branches = 2 + Math.floor(Math.random() * 3);
+                let branches = 2 + Math.floor(Math.random() * 2); // 2-3 Äste
                 for (let i = 0; i < branches; i++) {
-                    let newAngle = this.angle + (Math.random() - 0.5) * 1.6;
-                    let newLength = this.length * (0.6 + Math.random() * 0.25);
-                    this.children.push(new PinkFlower(endX, endY, newAngle, newLength, this.width * 0.65, this.depth + 1, this.palette, this.petalShape));
+                    let newAngle = this.angle + (Math.random() - 0.5) * 1.8;
+                    let newLength = this.length * (0.6 + Math.random() * 0.2);
+                    this.children.push(new PinkFlower(this.endX, this.endY, newAngle, newLength, this.width * 0.7, this.depth + 1, this.palette, this.petalShape));
                 }
             }
             this.children.forEach(child => child.update());
@@ -81,6 +169,11 @@
         draw() {
             let curX = this.x + Math.cos(this.angle + this.curve) * this.length * this.progress;
             let curY = this.y + Math.sin(this.angle + this.curve) * this.length * this.progress;
+            
+            // Endposition aktualisieren für den Zerfall
+            if(this.progress === 1 && !this.hasGrownChildren) {
+                this.endX = curX; this.endY = curY;
+            }
 
             ctx.beginPath();
             ctx.moveTo(this.x, this.y);
@@ -89,41 +182,33 @@
             ctx.quadraticCurveTo(cpX, cpY, curX, curY);
 
             ctx.strokeStyle = this.depth < 2 ? this.palette.stem : this.palette.branch;
-            ctx.lineWidth = Math.max(0.3, this.width);
+            ctx.lineWidth = Math.max(0.2, this.width);
             ctx.stroke();
 
-            if (this.progress >= 1 && this.depth >= 4) {
-                let size = Math.random() * 3 + 1.5;
+            // Dezente Blüten mit weichem Farbverlauf
+            if (this.progress >= 1 && this.depth >= 3) {
+                let size = Math.random() * 2.5 + 1; // Kleinere Blüten
+                
+                let grad = ctx.createRadialGradient(curX, curY, 0, curX, curY, size * 2);
+                grad.addColorStop(0, this.palette.center);
+                grad.addColorStop(1, this.palette.edge);
+
                 ctx.save();
                 ctx.translate(curX, curY);
                 ctx.rotate(this.angle);
+                ctx.fillStyle = grad;
 
                 if (this.petalShape === 0) {
-                    ctx.fillStyle = this.palette.bloom2;
                     ctx.beginPath(); ctx.arc(0, 0, size * 1.5, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = this.palette.bloom1;
-                    ctx.beginPath(); ctx.arc(size * 0.2, size * 0.2, size * 0.8, 0, Math.PI * 2); ctx.fill();
-                } 
-                else if (this.petalShape === 1) {
-                    ctx.fillStyle = this.palette.bloom1;
-                    ctx.beginPath(); ctx.ellipse(0, 0, size * 2.5, size * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = this.palette.bloom2;
-                    ctx.beginPath(); ctx.ellipse(0, 0, size * 1.5, size * 0.4, Math.PI / 4, 0, Math.PI * 2); ctx.fill();
-                } 
-                else if (this.petalShape === 2) {
-                    ctx.fillStyle = this.palette.bloom2;
-                    ctx.beginPath();
-                    ctx.moveTo(0, -size * 2); ctx.lineTo(size * 0.8, 0); 
-                    ctx.lineTo(0, size * 2); ctx.lineTo(-size * 0.8, 0);
-                    ctx.closePath(); ctx.fill();
-                    ctx.fillStyle = this.palette.bloom1;
-                    ctx.beginPath(); ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2); ctx.fill();
-                } 
-                else {
-                    ctx.fillStyle = this.palette.bloom1;
+                } else if (this.petalShape === 1) {
+                    ctx.beginPath(); ctx.ellipse(0, 0, size * 2, size * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+                } else if (this.petalShape === 2) {
+                    ctx.beginPath(); ctx.ellipse(0, 0, size * 1.5, size * 0.5, Math.PI/4, 0, Math.PI * 2); ctx.fill();
+                    ctx.beginPath(); ctx.ellipse(0, 0, size * 1.5, size * 0.5, -Math.PI/4, 0, Math.PI * 2); ctx.fill();
+                } else {
                     for(let k = 0; k < 3; k++) {
                         ctx.beginPath();
-                        ctx.arc((Math.random()-0.5)*size*3, (Math.random()-0.5)*size*3, size*0.7, 0, Math.PI * 2);
+                        ctx.arc((Math.random()-0.5)*size*2, (Math.random()-0.5)*size*2, size*0.8, 0, Math.PI * 2);
                         ctx.fill();
                     }
                 }
@@ -133,55 +218,102 @@
         }
     }
 
+    // --- INTERAKTIONEN ---
+
     function spawnStructure(x, y) {
         let palette = palettes[Math.floor(Math.random() * palettes.length)];
         let petalShape = Math.floor(Math.random() * 4);
-        let mainAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
-        structures.push(new PinkFlower(x, y, mainAngle, 85 + Math.random() * 35, 3.2, 0, palette, petalShape));
+        let mainAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
+        // Kürzere Startlänge (50-75) und schmalere Äste (2.5) für mehr Platz
+        structures.push(new PinkFlower(x, y, mainAngle, 50 + Math.random() * 25, 2.5, 0, palette, petalShape));
     }
 
-    // Verbesserte Erkennung für Handys
-    let lastSpawnTime = 0;
+    // Wandelt alle Blumen in fallende Blätter um (Schüttel-Effekt)
+    function breakIntoLeaves(branch) {
+        if (branch.progress >= 1 && branch.depth >= 2) {
+            // 2 Blätter pro Astende
+            fallingObjects.push(new FallingPetal(branch.endX, branch.endY, branch.palette.edge, branch.palette.center));
+            fallingObjects.push(new FallingPetal(branch.endX, branch.endY, branch.palette.edge, branch.palette.center));
+        }
+        branch.children.forEach(c => breakIntoLeaves(c));
+    }
+
+    function triggerShake() {
+        if(structures.length === 0) return;
+        structures.forEach(s => breakIntoLeaves(s));
+        structures = []; // Blumen von den Ästen lösen
+    }
+
+    function triggerLilies() {
+        // Spawnt 15 bis 25 Lilien am oberen Bildschirmrand
+        let count = 15 + Math.floor(Math.random() * 10);
+        for(let i = 0; i < count; i++) {
+            let startX = Math.random() * canvas.width;
+            let startY = -Math.random() * 150 - 50; // Versetzt über dem Rand
+            fallingObjects.push(new FallingLily(startX, startY));
+        }
+    }
+
+    // Input-Handler
+    let lastTap = 0;
     function handleTouch(e) {
         let now = Date.now();
-        if (now - lastSpawnTime < 100) return; 
-        lastSpawnTime = now;
+        if (now - lastTap < 300) {
+            // Doppeltippen erkannt -> Lilien fallen
+            triggerLilies();
+            lastTap = 0; // Reset
+            return;
+        }
+        lastTap = now;
         
+        // Normale Blume wachsen lassen
         let x = e.clientX || (e.touches && e.touches[0].clientX);
         let y = e.clientY || (e.touches && e.touches[0].clientY);
-        
         if(x !== undefined && y !== undefined) spawnStructure(x, y);
     }
 
     window.addEventListener('pointerdown', handleTouch);
-    window.addEventListener('touchstart', handleTouch, {passive: true});
 
-    window.addEventListener('dblclick', () => structures = []);
-    let lastTap = 0;
-    window.addEventListener('touchend', (e) => {
-        let time = Date.now();
-        if (time - lastTap < 300 && time - lastTap > 0) structures = [];
-        lastTap = time;
+    // Am PC: Echter Doppelklick für Lilien
+    window.addEventListener('dblclick', (e) => {
+        triggerLilies();
     });
 
+    // Schüttel-Sensor fürs Handy -> Blumen fallen weg
     if (window.DeviceMotionEvent) {
         let lx = 0, ly = 0, lz = 0;
         window.addEventListener('devicemotion', (e) => {
             let acc = e.accelerationIncludingGravity;
             if (!acc) return;
-            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 25) structures = [];
+            if (Math.abs(acc.x - lx) + Math.abs(acc.y - ly) + Math.abs(acc.z - lz) > 25) {
+                triggerShake();
+            }
             lx = acc.x; ly = acc.y; lz = acc.z;
         });
     }
 
+    // --- ANIMATION LOOP ---
+
     function animate() {
-        ctx.fillStyle = 'rgba(7, 5, 8, 0.12)';
+        ctx.fillStyle = 'rgba(7, 5, 8, 0.2)'; // Weicher Fade für Animationen
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+        // Wachsende Blumen zeichnen
         structures.forEach(s => {
             s.update();
             s.draw();
         });
+
+        // Fallende Objekte (Lilien & Blätter) zeichnen
+        for(let i = fallingObjects.length - 1; i >= 0; i--) {
+            let obj = fallingObjects[i];
+            obj.update();
+            obj.draw();
+            // Löschen, wenn sie unten aus dem Bildschirm fliegen
+            if (obj.y > canvas.height + 100) {
+                fallingObjects.splice(i, 1);
+            }
+        }
 
         requestAnimationFrame(animate);
     }
